@@ -1,39 +1,8 @@
 import Searchbar from "../component/Searchbar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 function LegalEntity (){
-    const [legalEntities, setLegalEntities] = useState([
-        {
-            id: 1,
-            kode: "PT",
-            name: "PT (Perseroan Terbatas)",
-            description: "Limited Liability Company",
-        },
-        {
-            id: 2,
-            kode: "CV",
-            name: "CV (Commanditaire Vennootschap)",
-            description: "Limited Partnership",
-        },
-        {
-            id: 3,
-            kode: "UD",
-            name: "UD (Usaha Dagang)",
-            description: "Trading Business",
-        },
-        {
-            id: 4,
-            kode: "FRM",
-            name: "Firma",
-            description: "General Partnership",
-        },
-        {
-            id: 5,
-            kode: "KPRS",
-            name: "Koperasi",
-            description: "Cooperative",
-        },
-    ]);
+    const [legalEntities, setLegalEntities] = useState<any[]>([]);
     const [search, setSearch] = useState("");
 
     const [showModal, setShowModal] = useState(false);
@@ -44,7 +13,23 @@ function LegalEntity (){
     const [formDescription, setFormDescription] = useState("");
     const [editingId, setEditingId] = useState<number | null>(null);
 
-    const handleEdit = (entity: any) => {
+
+    const fetchLegalEntities = async () => {
+        try {
+            const response = await fetch("http://localhost:3000/api/master-data/legal_entities");
+            const result = await response.json();
+            if (result.success) {
+                setLegalEntities(result.data);
+            }
+        } catch (error) {
+            console.error("Gagal mengambil data:", error);
+        }
+    };
+    useEffect(() => {
+        fetchLegalEntities();
+    }, []);
+
+       const handleEdit = (entity: any) => {
         setEditingId(entity.id);
         setFormKode(entity.kode); //int 10
         setFormName(entity.name);
@@ -54,32 +39,39 @@ function LegalEntity (){
         setTimeout(() => setAnimateModal(true), 10);
     };
 
-    const handleSave = () => {
-        if (editingId) {
-            setLegalEntities(
-                legalEntities.map((item) =>
-                    item.id === editingId
-                        ? {
-                            ...item,
-                            kode: formKode,
-                            name: formName,
-                            description: formDescription
-                        }
-                        : item
-                )
-            );
-        } else {
-            const newEntity = {
-                id: legalEntities.length + 1,
-                kode: formKode,
-                name: formName,
-                description: formDescription,
-            };
-
-            setLegalEntities([...legalEntities, newEntity]);
+    const handleSave = async () => {
+            if(!formKode.trim() || !formName.trim()){
+            alert("Code and Name Must be Filled!");
+            return;
         }
+        const payload = {
+            code: formKode,
+            name: formName,
+            description: formDescription
+        };
 
-        closeModal();
+        try {
+            if (editingId) {
+                // UPDATE (PUT)
+                await fetch(`http://localhost:3000/api/master-data/legal_entities/${editingId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+            } else {
+                // ADD NEW (POST)
+                await fetch("http://localhost:3000/api/master-data/legal_entities", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+            }
+
+            fetchLegalEntities();
+            closeModal();
+        } catch (error) {
+            console.error("Fail saving data: ", error);
+        }
     };
 
     const closeModal = () => {
@@ -87,15 +79,17 @@ function LegalEntity (){
         setTimeout(() => setShowModal(false), 200);
     };
 
-    const handleDelete = (id: number) => {
-        const filtered = legalEntities.filter((item) => item.id !== id);
+    const handleDelete = async (id: number) => {
+        if (!window.confirm("Are you sure you want to delete this legal entity?")) return;
 
-        const reindexed = filtered.map((item, index) => ({
-            ...item,
-            id: index + 1
-        }));
-
-        setLegalEntities(reindexed);
+        try {
+            await fetch(`http://localhost:3000/api/master-data/legal_entities/${id}`, {
+                method: "DELETE",
+            });
+            fetchLegalEntities();
+        } catch (error) {
+            console.error("Fail deleting data: ", error);
+        }
     };
 
     return(
@@ -137,38 +131,39 @@ function LegalEntity (){
                         <tbody className="divide-y text-gray-400">
                             {legalEntities
                                 .filter((entity) => entity.name.toLowerCase().includes(search.toLowerCase()))
-                                .map((entity) => (
+                                .map((entity, index) => (
                                 <tr
                                     key={entity.id}
                                     className="hover:bg-gray-100 transition-colors duration-300 ease-in-out"
                                 >
-                                    <td className="py-3 pl-5 font-semibold text-black">{entity.id}</td>
-                                    <td className="py-3 text-black">{entity.kode}</td>
+                                    <td className="py-3 pl-5 font-semibold text-black">{index + 1}</td>
+                                    
+                                    <td className="py-3 text-black">{entity.code || "-"}</td>
                                     <td className="py-3 text-black">{entity.name}</td>
-                                    <td className="py-3 text-black">{entity.description}</td>
+                                    <td className="py-3 text-black">{entity.description || "-"}</td>
 
                                     <td className="py-3 text-right">
                                         <div className="flex justify-end gap-4 pr-1">
                                             <button onClick={() => handleEdit(entity)} className="p-1 hover:bg-gray-300 rounded-lg transition-colors duration-300 ease-in-out">
                                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" 
-                                                stroke="#000000" stroke-linecap="round" stroke-linejoin="round" 
+                                                stroke="#000000" strokeLinecap="round" strokeLinejoin="round" 
                                                 id="Edit--Streamline-Tabler" height="24" width="24">
                                                     <desc>Edit Streamline Icon: https://streamlinehq.com</desc>
-                                                    <path d="M7 7H6a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" stroke-width="2"></path>
-                                                    <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97L9 12v3h3l8.385 -8.415z" stroke-width="2"></path>
-                                                    <path d="m16 5 3 3" stroke-width="2"></path>
+                                                    <path d="M7 7H6a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" strokeWidth="2"></path>
+                                                    <path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97L9 12v3h3l8.385 -8.415z" strokeWidth="2"></path>
+                                                    <path d="m16 5 3 3" strokeWidth="2"></path>
                                                 </svg>
                                             </button>
 
                                             <button onClick={() => handleDelete(entity.id)} className="p-1 hover:bg-gray-300 rounded-lg transition-colors duration-300 ease-in-out">
                                                 <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" 
                                                 width="25" height="25" viewBox="0 0 48 48">
-                                                    <path fill="none" stroke="red" stroke-miterlimit="10" stroke-width="3" d="M19.5,11.5V10c0-2.5,2-4.5,4.5-4.5s4.5,2,4.5,4.5v1.5">
-                                                    </path><line x1="8.5" x2="39.5" y1="11.5" y2="11.5" fill="none" stroke="red" stroke-linecap="round" stroke-miterlimit="10" stroke-width="3">
-                                                    </line><line x1="36.5" x2="36.5" y1="23.5" y2="11.5" fill="none" stroke="red" stroke-linecap="round" stroke-miterlimit="10" stroke-width="3">
-                                                    </line><path fill="none" stroke="red" stroke-linecap="round" stroke-miterlimit="10" stroke-width="3" d="M11.5,18.7v19.8c0,2.2,1.8,4,4,4h17c2.2,0,4-1.8,4-4V31">
-                                                    </path><line x1="20.5" x2="20.5" y1="19.5" y2="34.5" fill="none" stroke="red" stroke-linecap="round" stroke-miterlimit="10" stroke-width="3">
-                                                    </line><line x1="27.5" x2="27.5" y1="19.5" y2="34.5" fill="none" stroke="red" stroke-linecap="round" stroke-miterlimit="10" stroke-width="3">   
+                                                    <path fill="none" stroke="red" strokeMiterlimit="10" strokeWidth="3" d="M19.5,11.5V10c0-2.5,2-4.5,4.5-4.5s4.5,2,4.5,4.5v1.5">
+                                                    </path><line x1="8.5" x2="39.5" y1="11.5" y2="11.5" fill="none" stroke="red" strokeLinecap="round" strokeMiterlimit="10" strokeWidth="3">
+                                                    </line><line x1="36.5" x2="36.5" y1="23.5" y2="11.5" fill="none" stroke="red" strokeLinecap="round" strokeMiterlimit="10" strokeWidth="3">
+                                                    </line><path fill="none" stroke="red" strokeLinecap="round" strokeMiterlimit="10" strokeWidth="3" d="M11.5,18.7v19.8c0,2.2,1.8,4,4,4h17c2.2,0,4-1.8,4-4V31">
+                                                    </path><line x1="20.5" x2="20.5" y1="19.5" y2="34.5" fill="none" stroke="red" strokeLinecap="round" strokeMiterlimit="10" strokeWidth="3">
+                                                    </line><line x1="27.5" x2="27.5" y1="19.5" y2="34.5" fill="none" stroke="red" strokeLinecap="round" strokeMiterlimit="10" strokeWidth="3">   
                                                     </line>
                                                 </svg>
                                             </button>
@@ -191,7 +186,7 @@ function LegalEntity (){
                     ${animateModal ? "scale-100 opacity-100" : "scale-95 opacity-0"}
                     `}>
                         <h2 className="text-xl font-semibold mb-4">
-                            Add New Legal Entity
+                            {editingId ? "Edit Legal Entity" : "Add New Legal Entity"}
                         </h2>
                         <div className="flex flex-col gap-4">
                             <div>
